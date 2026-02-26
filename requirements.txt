@@ -1,5 +1,4 @@
 mcp
 asyncpg
 uvicorn
-fastapi
 sse-starlette
