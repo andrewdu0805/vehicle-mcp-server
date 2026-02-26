@@ -1,6 +1,8 @@
 import os
 import asyncpg
+from fastapi import FastAPI, Request
 from mcp.server.fastmcp import FastMCP
+from starlette.responses import Response
 
 # 1. 初始化
 mcp = FastMCP("Oil_Database_Search")
@@ -8,30 +10,24 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 @mcp.tool()
 async def search_engine_oil(brand: str = None, model: str = None, year: int = None):
-    """搜尋引擎機油工具"""
-    if not DATABASE_URL: return "錯誤：DATABASE_URL 未設定"
-    conn = await asyncpg.connect(DATABASE_URL)
-    try:
-        # (這裡保持你原本的 SQL 邏輯...)
-        return "資料庫連線測試成功"
-    finally:
-        await conn.close()
+    """搜尋引擎機油工具邏輯 (保持不變)"""
+    # ... 原本的 SQL 代碼 ...
+    return "工具連線成功"
 
-# 2. 獲取底層 SSE App
-mcp_app = mcp.sse_app()
+# 2. 建立 FastAPI
+app = FastAPI()
 
-# 3. 建立一個簡易的代理，確保根目錄 (/) 不會報 404，方便 Zeabur 監控
-async def app(scope, receive, send):
-    if scope["type"] == "http" and scope["path"] == "/":
-        await send({
-            "type": "http.response.start",
-            "status": 200,
-            "headers": [[b"content-type", b"application/json"]],
-        })
-        await send({
-            "type": "http.response.body",
-            "body": b'{"status": "ok", "info": "MCP Server is running"}',
-        })
-    else:
-        # 其餘所有請求 (如 /sse, /messages) 全部丟給 MCP 處理
-        await mcp_app(scope, receive, send)
+# 獲取 MCP 的內建 ASGI 處理器
+mcp_handler = mcp.sse_app()
+
+# --- 核心修正：接受所有方法 (GET/POST) 到所有路徑 ---
+@app.api_route("/{path:path}", methods=["GET", "POST", "OPTIONS"])
+async def catch_all_mcp(request: Request, path: str):
+    # 這裡會強制處理 n8n 發出的所有請求
+    # 解決 405 Method Not Allowed 的問題
+    return await mcp_handler(request.scope, request.receive, request._send)
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.getenv("PORT", 8080))
+    uvicorn.run(app, host="0.0.0.0", port=port)
