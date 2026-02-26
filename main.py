@@ -1,28 +1,37 @@
 import os
 import asyncpg
-from fastapi import FastAPI
 from mcp.server.fastmcp import FastMCP
-from fastmcp_mount import MountFastMCP  # 導入專門修正路徑的工具
 
-# 1. 初始化 MCP
+# 1. 初始化
 mcp = FastMCP("Oil_Database_Search")
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 @mcp.tool()
 async def search_engine_oil(brand: str = None, model: str = None, year: int = None):
-    """搜尋機油邏輯 (保持不變)"""
-    # ... 原本的 SQL 代碼 ...
-    return "工具運作正常"
+    """搜尋引擎機油工具"""
+    if not DATABASE_URL: return "錯誤：DATABASE_URL 未設定"
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        # (這裡保持你原本的 SQL 邏輯...)
+        return "資料庫連線測試成功"
+    finally:
+        await conn.close()
 
-# 2. 建立 FastAPI
-app = FastAPI()
+# 2. 獲取底層 SSE App
+mcp_app = mcp.sse_app()
 
-# 3. 使用 MountFastMCP 包裝 SSE App 並掛載到根目錄
-# 這會自動處理 /sse 和 /messages 路徑，並修正網域前綴 Bug
-app.mount("/", MountFastMCP(mcp.sse_app()))
-
-if __name__ == "__main__":
-    import uvicorn
-    # Zeabur 會給 PORT 環境變數，通常是 8080
-    port = int(os.getenv("PORT", 8080))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+# 3. 建立一個簡易的代理，確保根目錄 (/) 不會報 404，方便 Zeabur 監控
+async def app(scope, receive, send):
+    if scope["type"] == "http" and scope["path"] == "/":
+        await send({
+            "type": "http.response.start",
+            "status": 200,
+            "headers": [[b"content-type", b"application/json"]],
+        })
+        await send({
+            "type": "http.response.body",
+            "body": b'{"status": "ok", "info": "MCP Server is running"}',
+        })
+    else:
+        # 其餘所有請求 (如 /sse, /messages) 全部丟給 MCP 處理
+        await mcp_app(scope, receive, send)
