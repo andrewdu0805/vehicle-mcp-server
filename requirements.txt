@@ -1,6 +1,5 @@
 mcp
-asyncpg
-uvicorn
 fastapi
+uvicorn
+asyncpg
 sse-starlette
-fastmcp-mount
