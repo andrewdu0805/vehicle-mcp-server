@@ -25,8 +25,12 @@ async def search_engine_oil(brand: str = None, model: str = None, year: int = No
         if 'conn' in locals():
             await conn.close()
 
-# ... 之前的 import 和 @mcp.tool 保持不變 ...
+import os
+# ... 保持您原本的 import 和工具定義 (search_engine_oil) ...
 
-# 只要這兩行就好，不要 app = mcp.app，也不要 uvicorn.run
 if __name__ == "__main__":
-    mcp.run(transport="sse")
+    # 關鍵：從環境變數抓 PORT，沒抓到才用 8000 (Zeabur 會給 8080)
+    port_env = int(os.getenv("PORT", 8000))
+    
+    # 強制 transport="sse" 並綁定 0.0.0.0
+    mcp.run(transport="sse", host="0.0.0.0", port=port_env)
