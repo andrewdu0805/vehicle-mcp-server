@@ -25,5 +25,8 @@ async def search_engine_oil(brand: str = None, model: str = None, year: int = No
         if 'conn' in locals():
             await conn.close()
 
-# --- 核心關鍵：暴露 ASGI App 給 Uvicorn ---
-app = mcp.app
+# ... 之前的 import 和 @mcp.tool 保持不變 ...
+
+# 只要這兩行就好，不要 app = mcp.app，也不要 uvicorn.run
+if __name__ == "__main__":
+    mcp.run(transport="sse")
