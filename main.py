@@ -50,4 +50,5 @@ async def search_engine_oil(brand: str = None, model: str = None, year: int = No
         await conn.close()
 
 if __name__ == "__main__":  
-    mcp.run()  
+    mcp.run(host="0.0.0.0", port=8080)  
+ 
