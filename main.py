@@ -1,11 +1,12 @@
 import os
 import asyncpg
+import uvicorn
 from mcp.server.fastmcp import FastMCP
 
-# 初始化 FastMCP，這會讓 n8n 識別這個工具
+# 初始化 FastMCP
 mcp = FastMCP("Oil_Database_Search")
 
-# 資料庫連線資訊（稍後從 Zeabur 環境變數抓取）
+# 資料庫連線資訊
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 @mcp.tool()
@@ -16,9 +17,12 @@ async def search_engine_oil(brand: str = None, model: str = None, year: int = No
     :param model: 車輛型號 (例如: A1)
     :param year: 生產年份 (例如: 2015)
     """
+    # 確保有資料庫連線字串
+    if not DATABASE_URL:
+        return "錯誤：尚未設定 DATABASE_URL 環境變數。"
+
     conn = await asyncpg.connect(DATABASE_URL)
     try:
-        # 建立基礎 SQL 查詢，只找 enable_display 為 true 的資料
         query = "SELECT brand, model, chassis_code, viscosity, matched_product, shop_url FROM engine_oils WHERE enable_display = TRUE"
         args = []
         counter = 1
@@ -40,7 +44,6 @@ async def search_engine_oil(brand: str = None, model: str = None, year: int = No
         if not rows:
             return "找不到符合條件的機油資訊。"
         
-        # 格式化結果給 AI 閱讀
         results = []
         for r in rows:
             results.append(f"【{r['brand']} {r['model']} ({r['chassis_code']})】\n建議黏度：{r['viscosity']}\n推薦產品：{r['matched_product']}\n購買連結：{r['shop_url']}")
@@ -49,6 +52,12 @@ async def search_engine_oil(brand: str = None, model: str = None, year: int = No
     finally:
         await conn.close()
 
+# --- 關鍵修正區段 ---
+# 1. 導出 ASGI app 物件，讓 uvicorn 認得它
+app = mcp.app 
+
 if __name__ == "__main__":
-    # 強制開啟網路模式，並對齊 Zeabur 的 8080 埠
-    mcp.run(transport="sse", host="0.0.0.0", port=8080)
+    # 2. 獲取 Zeabur 指定的 PORT，預設為 8080
+    port = int(os.getenv("PORT", 8080))
+    # 3. 強制使用 uvicorn 啟動並綁定 0.0.0.0 以開放外網連線
+    uvicorn.run(app, host="0.0.0.0", port=port, interface="asgi")
