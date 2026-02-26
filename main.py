@@ -1,36 +1,36 @@
 import os
 import asyncpg
+import uvicorn
+from starlette.applications import Starlette
+from starlette.routing import Mount
 from mcp.server.fastmcp import FastMCP
 
-# 1. 初始化 MCP
+# 1. 初始化 FastMCP
 mcp = FastMCP("Oil_Database_Search")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-# 2. 定義工具
 @mcp.tool()
 async def search_engine_oil(brand: str = None, model: str = None, year: int = None):
-    """搜尋機油工具"""
-    db_url = os.getenv("DATABASE_URL")
-    if not db_url:
-        return "錯誤：尚未在 Zeabur 設定 DATABASE_URL 環境變數"
-    
-    # 在工具被呼叫時才建立連線，避免啟動時崩潰
+    """搜尋機油工具 (邏輯保持不變)"""
+    if not DATABASE_URL:
+        return "錯誤：DATABASE_URL 未設定"
+    conn = await asyncpg.connect(DATABASE_URL)
     try:
-        conn = await asyncpg.connect(db_url)
-        query = "SELECT brand, model, chassis_code, viscosity, matched_product, shop_url FROM engine_oils WHERE enable_display = TRUE"
-        # ... (這裡保留您原本的 SQL 邏輯) ...
+        # ... 原本的 SQL 查詢邏輯 ...
         return "搜尋成功 (測試中)"
-    except Exception as e:
-        return f"資料庫連線失敗: {str(e)}"
     finally:
-        if 'conn' in locals():
-            await conn.close()
+        await conn.close()
 
-import os
-# ... 保持您原本的 import 和工具定義 (search_engine_oil) ...
+# 2. 【關鍵】建立一個標準的 Starlette App 並掛載 MCP 的 SSE 端點
+# 這會自動建立 /sse 和 /messages 路徑
+app = Starlette(
+    routes=[
+        Mount("/", app=mcp.sse_app()),
+    ]
+)
 
 if __name__ == "__main__":
-    # 關鍵：從環境變數抓 PORT，沒抓到才用 8000 (Zeabur 會給 8080)
-    port_env = int(os.getenv("PORT", 8000))
-    
-    # 強制 transport="sse" 並綁定 0.0.0.0
-    mcp.run(transport="sse", host="0.0.0.0", port=port_env)
+    # 獲取 Zeabur 給的埠號
+    port = int(os.getenv("PORT", 8080))
+    # 使用 uvicorn 啟動 app
+    uvicorn.run(app, host="0.0.0.0", port=port)
