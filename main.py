@@ -28,13 +28,11 @@ async def health():
     return {"status": "running", "mcp_check": "manual_route"}
 
 # --- 核心關鍵：手動橋接 SSE ---
-# 我們不使用 mount，改用直接調用，這樣能強迫路徑對齊
-mcp_handler = mcp.sse_app()
-
-@app.get("/sse")
-async def sse_interface(request: Request):
-    # 強迫 MCP 處理這個 GET 請求
-    return await mcp_handler(request.scope, request.receive, request._send)
+# 把之前的 mcp_handler 那段改成這樣：
+@app.api_route("/{path:path}", methods=["GET", "POST"])
+async def catch_all(request: Request, path: str):
+    sse_handler = mcp.sse_app()
+    return await sse_handler(request.scope, request.receive, request._send)
 
 @app.post("/messages")
 async def messages_interface(request: Request):
