@@ -23,21 +23,17 @@ async def search_engine_oil(brand: str = None, model: str = None, year: int = No
 # 2. 建立 FastAPI 並強行修復路徑
 app = FastAPI()
 
-# 測試用：確認網址活著
+# 1. 測試路徑 (這已經通了)
 @app.get("/")
 async def root():
-    return {"status": "running"}
+    return {"status": "running", "mcp_path": "/sse"}
 
-# 關鍵：手動將 MCP 的 sse 處理器掛載到根目錄
-# 這樣 n8n 敲 /sse 或 /messages 時就不會跑錯地方
-mcp_asgi = mcp.sse_app()
-
+# 2. 核心修正：將 MCP 的處理器直接綁定在 /sse 和 /messages
+# 這樣不論 n8n 怎麼敲，都會進到同一個處理器
 @app.get("/sse")
 @app.post("/messages")
-async def handle_mcp(request: Request):
-    return await mcp_asgi(request.scope, request.receive, request._send)
-
-if __name__ == "__main__":
-    import uvicorn
-    port = int(os.getenv("PORT", 8080))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+async def mcp_handler(request: Request):
+    # 獲取 FastMCP 的 ASGI App
+    sse_handler = mcp.sse_app()
+    # 執行處理
+    return await sse_handler(request.scope, request.receive, request._send)
