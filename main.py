@@ -49,5 +49,6 @@ async def search_engine_oil(brand: str = None, model: str = None, year: int = No
     finally:
         await conn.close()
 
-if __name__ == "__main__":
-    mcp.run()
+if __name__ == "__main__":  
+    import uvicorn  
+    uvicorn.run(mcp.app, host="0.0.0.0", port=8080)  
